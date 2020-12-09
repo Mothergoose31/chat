@@ -57,3 +57,13 @@ func (a *Api) getUserFromAuthToken(tok string) ([]byte, error) {
 	return ret, nil
 }
 
+func (a *Api) sendPrivmsg(fromuid, targetuid Userid, msg string) error {
+	endpoint := a.url + "/messages/send"
+	resp, err := http.PostForm(endpoint, url.Values{
+		"privatekey":   {a.key},
+		"userid":       {fmt.Sprintf("%d", fromuid)},
+		"targetuserid": {fmt.Sprintf("%d", targetuid)},
+		"message":      {msg},
+	})
+if
+}
