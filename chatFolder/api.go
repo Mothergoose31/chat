@@ -72,5 +72,26 @@ func (a *Api) sendPrivmsg(fromuid, targetuid Userid, msg string) error {
 	if err != nil {
 		return err
 	}
+	if resp.StatusCode != 204 {
+		d, err := ioutil.ReadAll(resp.Body)
+		if err == nil {
+			var s struct {
+				Error string
+			}
 
+			err = json.Unmarshal(d, &s)
+			if err != nil {
+				D("sendprivmsg unmarshal error", string(d))
+				return fmt.Errorf("unknown")
+			} else {
+				return fmt.Errorf(s.Error)
+			}
+		}
+
+		return fmt.Errorf("api: privmsg response code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
+
+
