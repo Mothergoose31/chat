@@ -65,5 +65,12 @@ func (a *Api) sendPrivmsg(fromuid, targetuid Userid, msg string) error {
 		"targetuserid": {fmt.Sprintf("%d", targetuid)},
 		"message":      {msg},
 	})
-if
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	if err != nil {
+		return err
+	}
+
 }
