@@ -216,3 +216,51 @@ func (u *User) setFeatures(features []string) {
 		}
 	}
 }
+
+
+
+func (u *User) assembleSimplifiedUser() {
+	usertools.featurelock.RLock()
+	f, ok := usertools.features[u.features]
+	usertools.featurelock.RUnlock()
+
+	if !ok {
+		usertools.featurelock.Lock()
+		defer usertools.featurelock.Unlock()
+
+		numfeatures := u.featureCount()
+		f = make([]string, 0, numfeatures)
+		if u.featureGet(ISPROTECTED) {
+			f = append(f, "protected")
+		}
+		if u.featureGet(ISSUBSCRIBER) {
+			f = append(f, "subscriber")
+		}
+		if u.featureGet(ISVIP) {
+			f = append(f, "vip")
+		}
+		if u.featureGet(ISMODERATOR) {
+			f = append(f, "moderator")
+		}
+		if u.featureGet(ISADMIN) {
+			f = append(f, "admin")
+		}
+		if u.featureGet(ISBOT) {
+			f = append(f, "bot")
+		}
+
+		for i := uint8(6); i < 64; i++ {
+			if u.featureGet(1 << i) {
+				flair := fmt.Sprintf("flair%d", i-5)
+				f = append(f, flair)
+			}
+		}
+
+		usertools.features[u.features] = f
+	}
+
+	u.simplified = &SimplifiedUser{
+		u.nick,
+		&f,
+	}
+}
