@@ -178,5 +178,41 @@ func (u *User) isSubscriber() bool {
 }
 
 // chekc if user if exempt from fate limmiting
+func (u *User) isBot() bool {
+	return u.featureGet(ISBOT)
+}
+
 
 // check if user can be moderated or not 
+func (u *User) isProtected() bool {
+	return u.featureGet(ISADMIN | ISPROTECTED)
+}
+
+func (u *User) setFeatures(features []string) {
+	for _, feature := range features {
+		switch feature {
+		case "admin":
+			u.featureSet(ISADMIN)
+		case "moderator":
+			u.featureSet(ISMODERATOR)
+		case "protected":
+			u.featureSet(ISPROTECTED)
+		case "subscriber":
+			u.featureSet(ISSUBSCRIBER)
+		case "vip":
+			u.featureSet(ISVIP)
+		case "bot":
+			u.featureSet(ISBOT)
+		default:
+			if feature[:5] == "flair" {
+				flair, err := strconv.Atoi(feature[5:])
+				if err != nil {
+					D("Could not parse unknown feature:", feature, err)
+					continue
+				}
+				// six proper features, all others are just useless flairs
+				u.featureSet(1 << (5 + uint8(flair)))
+			}
+		}
+	}
+}
