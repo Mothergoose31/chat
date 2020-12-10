@@ -113,5 +113,43 @@ type sessionuser struct {
 }
 
 func userfromSession(m []byte) (u *User) {
-	
+	var su sessionuser
+
+	err := su.UnmarshalJSON(m)
+	if err != nil {
+		B("Unable to unmarshal sessionuser string: ", string(m))
+		return
+	}
+
+	uid, err := strconv.ParseInt(su.UserId, 10, 32)
+	if err != nil {
+		return
+	}
+
+	u = &User{
+		id:              Userid(uid),
+		nick:            su.Username,
+		features:        0,
+		lastmessage:     nil,
+		lastmessagetime: time.Time{},
+		delayscale:      1,
+		simplified:      nil,
+		connections:     0,
+		RWMutex:         sync.RWMutex{},
+	}
+
+	u.setFeatures(su.Features)
+
+	forceupdate := false
+	if cu := namescache.get(u.id); cu != nil && cu.features == u.features {
+		forceupdate = true
+	}
+
+	u.assembleSimplifiedUser()
+	usertools.addUser(u, forceupdate)
+	return
+}
+
+func (u *User) featureGet(bitnum uint64) bool {
+	return ((u.features & bitnum) != 0)
 }
