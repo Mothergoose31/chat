@@ -153,3 +153,16 @@ func userfromSession(m []byte) (u *User) {
 func (u *User) featureGet(bitnum uint64) bool {
 	return ((u.features & bitnum) != 0)
 }
+
+func (u *User) featureSet(bitnum uint64) {
+	u.features |= bitnum
+}
+
+func (u *User) featureCount() (c uint8) {
+	// Counting bits set, Brian Kernighan's way
+	v := u.features
+	for c = 0; v != 0; c++ {
+		v &= v - 1 // clear the least significant bit set
+	}
+	return
+}
