@@ -49,5 +49,21 @@ func initUsers(redisdb init64){
 }
 
 func(ut *UserTools) getUseridForNick(nick string) (userid, bool){
+	ut.nicklock.RLock()
+	d, ok := ut.nicklookup[strings.ToLower(nick)]
+	if !ok {
+		uid, protected := db.getUser(nick)
+		if uid != 0 {
+			ut.nicklock.RUnlock()
+			ut.nicklock.Lock()
+			ut.nicklookup[strings.ToLower(nick)] = &uidprot{uid, protected}
+			ut.nicklock.Unlock()
+			return uid, protected
+		}
+		ut.nicklock.RUnlock()
+		return 0, false
+	}
+	ut.nicklock.RUnlock()
+	return d.id, d.protected
 
 }
