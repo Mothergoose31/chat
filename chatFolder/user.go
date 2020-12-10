@@ -264,3 +264,59 @@ func (u *User) assembleSimplifiedUser() {
 		&f,
 	}
 }
+
+
+
+func getUserFromWebRequest(r *http.Request) (user *User, banned bool, ip string) {
+	ip = r.Header.Get("X-Real-Ip")
+	if ip == "" {
+		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+	}
+
+	ip = getMaskedIP(ip)
+	banned = bans.isIPBanned(ip)
+	if banned {
+		return
+	}
+
+	var authdata []byte
+	// set up the user here from redis if the user has a session cookie
+	sessionid, err := r.Cookie("sid")
+	if err == nil {
+		if !cookievalid.MatchString(sessionid.Value) {
+			return
+		}
+
+		authdata, err = redisGetBytes(fmt.Sprintf("CHAT:session-%v", sessionid.Value))
+		if err != nil || len(authdata) == 0 {
+			return
+		}
+	} else {
+		// try authtoken auth
+		authtoken, err := r.Cookie("authtoken")
+		if err != nil {
+			return
+		}
+
+		authdata, err = api.getUserFromAuthToken(authtoken.Value)
+		if err != nil {
+			D("getUserFromAuthToken error", err)
+			return
+		}
+	}
+
+	user = userfromSession(authdata)
+	if user == nil {
+		return
+	}
+
+	banned = bans.isUseridBanned(user.id)
+	if banned {
+		return
+	}
+
+	cacheIPForUser(user.id, ip)
+	// there is only ever one single "user" struct, the namescache makes sure of that
+	user = namescache.add(user)
+	return
+}
