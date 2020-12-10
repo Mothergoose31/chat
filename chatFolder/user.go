@@ -67,3 +67,51 @@ func(ut *UserTools) getUseridForNick(nick string) (userid, bool){
 	return d.id, d.protected
 
 }
+func (ut *userTools) addUser(u *User, force bool) {
+	lowernick := strings.ToLower(u.nick)
+	if !force {
+		ut.nicklock.RLock()
+		_, ok := ut.nicklookup[lowernick]
+		ut.nicklock.RUnlock()
+		if ok {
+			return
+		}
+	}
+	ut.nicklock.Lock()
+	defer ut.nicklock.Unlock()
+	ut.nicklookup[lowernick] = &uidprot{u.id, u.isProtected()}
+}
+
+func runRefreshUser(redisdb int64) {
+	setupRedisSubscription("refreshuser", redisdb, func(result *redis.PublishedValue) {
+		user := userfromSession(result.Value.Bytes())
+		namescache.refresh(user)
+		hub.refreshuser <- user.id
+	})
+}
+
+
+type Userid int32
+
+
+type User struct {
+	id              Userid
+	nick            string
+	features        uint64
+	lastmessage     []byte
+	lastmessagetime time.Time
+	delayscale      uint8
+	simplified      *SimplifiedUser
+	connections     int32
+	sync.RWMutex
+}
+
+type sessionuser struct {
+	Username string   `json:"username"`
+	UserId   string   `json:"userId"`
+	Features []string `json:"features"`
+}
+
+func userfromSession(m []byte) (u *User) {
+	
+}
