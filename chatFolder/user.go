@@ -166,3 +166,17 @@ func (u *User) featureCount() (c uint8) {
 	}
 	return
 }
+
+// check if the user can use moderator comands
+func (u *User) isModerator() bool {
+	return u.featureGet(ISMODERATOR | ISADMIN | ISBOT)
+}
+
+// check if is a subscriber
+func (u *User) isSubscriber() bool {
+	return u.featureGet(ISSUBSCRIBER | ISADMIN | ISMODERATOR | ISVIP | ISBOT)
+}
+
+// chekc if user if exempt from fate limmiting
+
+// check if user can be moderated or not 
