@@ -139,3 +139,88 @@ func main(){
 	}
 
 }
+
+http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
+	user, banned, ip := getUserFromWebRequest(r)
+
+	if banned {
+		ws.SetWriteDeadline(time.Now().Add(WRITETIMEOUT))
+		ws.WriteMessage(websocket.TextMessage, []byte(`ERR {"description":"banned"}`))
+		return
+	}
+
+	newConnection(ws, user, ip)
+})
+
+fmt.Printf("Using %v threads, and listening on: %v\n", processes, addr)
+if err := http.ListenAndServe(addr, nil); err != nil {
+	log.Fatal("ListenAndServe: ", err)
+}
+}
+
+func unixMilliTime() int64 {
+return time.Now().UTC().Truncate(time.Millisecond).UnixNano() / int64(time.Millisecond)
+}
+
+// expecting the argument to be in UTC
+func isExpiredUTC(t time.Time) bool {
+return t.Before(time.Now().UTC())
+}
+
+func addDurationUTC(d time.Duration) time.Time {
+return time.Now().UTC().Add(d)
+}
+
+func getFuturetimeUTC() time.Time {
+return time.Date(2030, time.January, 1, 0, 0, 0, 0, time.UTC)
+}
+
+func (s *State) load() {
+s.Lock()
+defer s.Unlock()
+
+b, err := ioutil.ReadFile("state.dc")
+if err != nil {
+	D("Error while reading from states file", err)
+	return
+}
+mb := bytes.NewBuffer(b)
+dec := gob.NewDecoder(mb)
+err = dec.Decode(&s.mutes)
+if err != nil {
+	D("Error decoding mutes from states file", err)
+}
+err = dec.Decode(&s.submode)
+if err != nil {
+	D("Error decoding submode from states file", err)
+}
+}
+
+// expects to be called with locks held
+func (s *State) save() {
+mb := new(bytes.Buffer)
+enc := gob.NewEncoder(mb)
+err := enc.Encode(&s.mutes)
+if err != nil {
+	D("Error encoding mutes:", err)
+}
+err = enc.Encode(&s.submode)
+if err != nil {
+	D("Error encoding submode:", err)
+}
+
+err = ioutil.WriteFile("state.dc", mb.Bytes(), 0600)
+if err != nil {
+	D("Error with writing out state file:", err)
+}
+}
