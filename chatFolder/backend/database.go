@@ -82,3 +82,121 @@ type dbDeleteBan struct {
 				endtimestamp   = ?
 		`)
 	}
+
+
+func(db* database)runInsertBan(){
+	t:= time.newTimer(time.Minute)
+	stmt := db.getIntertBanStatement()
+
+
+	for {
+		select {
+		case <-t.C:
+			stmt.Close()
+			stmt = nil
+		case data := <-db.insertban:
+			t.Reset(time.Minute)
+			if stmt == nil {
+				stmt = db.getInsertBanStatement()
+			}
+			if data.retries > 2 {
+				continue
+			}
+			db.Lock()
+			_, err := stmt.Exec(data.uid, data.targetuid, data.ipaddress, data.reason, data.starttime, data.endtime)
+			db.Unlock()
+			if err != nil {
+				data.retries++
+				D("Unable to insert event", err)
+				go (func() {
+					db.insertban <- data
+				})()
+			}
+		}
+	}
+}	
+
+func (db *database) runDeleteBan() {
+	t := time.NewTimer(time.Minute)
+	stmt := db.getDeleteBanStatement()
+	for {
+		select {
+		case <-t.C:
+			stmt.Close()
+			stmt = nil
+		case data := <-db.deleteban:
+			t.Reset(time.Minute)
+			if stmt == nil {
+				stmt = db.getDeleteBanStatement()
+			}
+			db.Lock()
+			_, err := stmt.Exec(data.uid)
+			db.Unlock()
+			if err != nil {
+				D("Unable to insert event", err)
+				go (func() {
+					db.deleteban <- data
+				})()
+			}
+		}
+	}
+}
+
+func (db *database) insertBan(uid Userid, targetuid Userid, ban *BanIn, ip string) {
+
+	ipaddress := &sql.NullString{}
+	if ban.BanIP && len(ip) != 0 {
+		ipaddress.String = ip
+		ipaddress.Valid = true
+	}
+	starttimestamp := time.Now().UTC()
+
+	endtimestamp := &mysql.NullTime{}
+	if !ban.Ispermanent {
+		endtimestamp.Time = starttimestamp.Add(time.Duration(ban.Duration))
+		endtimestamp.Valid = true
+	}
+
+	db.insertban <- &dbInsertBan{uid, targetuid, ipaddress, ban.Reason, starttimestamp, endtimestamp, 0}
+}
+
+func (db *database) deleteBan(targetuid Userid) {
+	db.deleteban <- &dbDeleteBan{targetuid}
+}
+
+func (db *database) getBans(f func(Userid, sql.NullString, mysql.NullTime)) {
+	db.Lock()
+	defer db.Unlock()
+
+	rows, err := db.db.Query(`
+		SELECT
+			targetuserid,
+			ipaddress,
+			endtimestamp
+		FROM bans
+		WHERE
+			endtimestamp IS NULL OR
+			endtimestamp > NOW()
+		GROUP BY targetuserid, ipaddress
+	`)
+
+	if err != nil {
+		D("Unable to get active bans: ", err)
+		return
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var uid Userid
+		var ipaddress sql.NullString
+		var endtimestamp mysql.NullTime
+		err = rows.Scan(&uid, &ipaddress, &endtimestamp)
+
+		if err != nil {
+			D("Unable to scan bans row: ", err)
+			continue
+		}
+
+		f(uid, ipaddress, endtimestamp)
+	}
+}
