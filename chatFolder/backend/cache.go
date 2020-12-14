@@ -142,3 +142,28 @@ func cacheIPForUser(userid Userid, ip string) {
 		D("cacheIPForUser redis error", err)
 	}
 }
+
+
+func getIPCacheForUser(userid Userid) []string {
+	conn := redisGetConn()
+	defer conn.Return()
+
+	ips, err := conn.DoStrings("EVALSHA", rdsGetIPCache, 1, fmt.Sprintf("CHAT:userips-%d", userid))
+	if err != nil {
+		D("getIPCacheForUser redis error", err)
+	}
+
+	return ips
+}
+
+func isSubErr(sub *redis.Subscription, err error) bool {
+	if err != nil {
+		D("Getting a subscription failed with error", err)
+		if sub != nil {
+			sub.Close()
+		}
+		time.Sleep(500 * time.Millisecond)
+		return true
+	}
+	return false
+}
