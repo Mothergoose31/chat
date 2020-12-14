@@ -167,3 +167,48 @@ func isSubErr(sub *redis.Subscription, err error) bool {
 	}
 	return false
 }
+
+
+func setupRedisSubscription(channel string, redisdb int64, cb func(*redis.PublishedValue)) {
+	again:
+		sub, err := rds.Subscription()
+		if isSubErr(sub, err) {
+			goto again
+		}
+	
+		err = sub.Subscribe(fmt.Sprintf("%s-%d", channel, redisdb))
+		if isSubErr(sub, err) {
+			goto again
+		}
+	
+		for {
+			result, err := sub.Pop()
+			if isSubErr(sub, err) {
+				goto again
+			}
+	
+			if result.Value.IsNil() {
+				continue
+			}
+	
+			cb(result)
+		}
+	}
+	
+	func redisGetBytes(key string) ([]byte, error) {
+		conn := redisGetConn()
+		defer conn.Return()
+	
+		result, err := conn.Do("GET", key)
+		if err != nil {
+			return []byte{}, err
+		}
+	
+		value, err := result.ValueAt(0)
+		if err != nil {
+			return []byte{}, err
+		}
+	
+		return value.Bytes(), err
+	}
+	
