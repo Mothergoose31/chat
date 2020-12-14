@@ -212,3 +212,38 @@ func setupRedisSubscription(channel string, redisdb int64, cb func(*redis.Publis
 		return value.Bytes(), err
 	}
 	
+
+	func cacheChatEvent(msg *message) {
+		conn := redisGetConn()
+		defer conn.Return()
+	
+		data, err := Pack(msg.event, msg.data.([]byte))
+		if err != nil {
+			D("cacheChatEvent pack error", err)
+			return
+		}
+	
+		_, err = conn.Do(
+			"EVALSHA",
+			rdsCircularBuffer,
+			1,
+			"CHAT:chatlog",
+			CHATLOGLINES,
+			data,
+		)
+	
+		if err != nil {
+			D("cacheChatEvent redis error", err)
+		}
+	}
+	
+	func cacheConnectedUsers(marshallednames []byte) {
+		conn := redisGetConn()
+		defer conn.Return()
+	
+		_, err := conn.DoOK("SET", "CHAT:connectedUsers", marshallednames)
+	
+		if err != nil {
+			D("Error caching connected users.", err)
+		}
+	}
