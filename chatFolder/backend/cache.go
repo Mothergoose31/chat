@@ -119,7 +119,26 @@ rdsSetIPCache, err = conn.DoString("SCRIPT", "LOAD", `
 		return redis.call("ZADD", key, count + 1, value)
 	end
 `)
-if err != nil {
+	if err != nil {
 	F("Set IP Cache script loading error", err)
+	}
 }
+
+
+
+
+
+
+func cacheIPForUser(userid Userid, ip string) {
+	if ip == "127.0.0.1" {
+		return
+	}
+
+	conn := redisGetConn()
+	defer conn.Return()
+
+	_, err := conn.Do("EVALSHA", rdsSetIPCache, 1, fmt.Sprintf("CHAT:userips-%d", userid), ip)
+	if err != nil {
+		D("cacheIPForUser redis error", err)
+	}
 }
