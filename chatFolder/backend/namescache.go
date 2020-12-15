@@ -158,3 +158,17 @@ func (nc *namesCache) disconnect(user *User) {
 	}
 	nc.marshalNames(updateircnames)
 }
+func (nc *namesCache) refresh(user *User) {
+	nc.RLock()
+	defer nc.RUnlock()
+
+	if u, ok := nc.users[user.id]; ok {
+		u.Lock()
+		u.simplified.Nick = user.nick
+		u.simplified.Features = user.simplified.Features
+		u.nick = user.nick
+		u.features = user.features
+		u.Unlock()
+		nc.marshalNames(true)
+	}
+}
