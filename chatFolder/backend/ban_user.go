@@ -63,3 +63,38 @@ func (b *Bans) runRefresh(redisdb int64) {
 		b.loadActive()
 	})
 }
+
+
+func (b *Bans) runUnban(redisdb int64) {
+	setupRedisSubscription("unbanuserid", redisdb, func(result *redis.PublishedValue) {
+		userid, err := result.Value.Uint64()
+		if err != nil {
+			D("Error parsing message as uint64:", userid, err)
+			return
+		}
+
+		uid := Userid(userid)
+		b.unbanUserid(uid)
+		mutes.unmuteUserid(uid)
+	})
+}
+
+func (b *Bans) clean() {
+	b.userlock.Lock()
+	defer b.userlock.Unlock()
+	b.iplock.Lock()
+	defer b.iplock.Unlock()
+
+	for uid, unbantime := range b.users {
+		if isExpiredUTC(unbantime) {
+			delete(b.users, uid)
+			b.userips[uid] = nil
+		}
+	}
+
+	for ip, unbantime := range b.ips {
+		if isExpiredUTC(unbantime) {
+			delete(b.ips, ip)
+		}
+	}
+}
