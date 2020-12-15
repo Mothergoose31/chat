@@ -99,3 +99,41 @@ func (nc *namesCache) marshalNames(updateircnames bool) {
 		u.RUnlock()
 	}
 }
+
+
+
+func (nc *namesCache) getNames() []byte {
+	nc.RLock()
+	defer nc.RUnlock()
+	return nc.marshallednames
+}
+
+func (nc *namesCache) get(id Userid) *User {
+	nc.RLock()
+	defer nc.RUnlock()
+	u, _ := nc.users[id]
+	return u
+}
+
+func (nc *namesCache) add(user *User) *User {
+	nc.Lock()
+	defer nc.Unlock()
+
+	nc.usercount++
+	var updateircnames bool
+	if u, ok := nc.users[user.id]; ok {
+		atomic.AddInt32(&u.connections, 1)
+	} else {
+		updateircnames = true
+		atomic.AddInt32(&user.connections, 1)
+		su := &SimplifiedUser{
+			Nick:     user.nick,
+			Features: user.simplified.Features,
+		}
+		user.simplified = su
+		nc.users[user.id] = user
+	}
+	nc.marshalNames(updateircnames)
+	return nc.users[user.id]
+}
+
