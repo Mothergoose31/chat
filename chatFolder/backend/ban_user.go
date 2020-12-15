@@ -167,3 +167,39 @@ func (b *Bans) unbanUserid(uid Userid) {
 	b.userips[uid] = nil
 	D("Unbanned uid: ", uid)
 }
+
+
+func isStillBanned(t time.Time, ok bool) bool {
+	if !ok {
+		return false
+	}
+	return !isExpiredUTC(t)
+}
+
+func (b *Bans) isUseridBanned(uid Userid) bool {
+	if uid == 0 {
+		return false
+	}
+	b.userlock.RLock()
+	defer b.userlock.RUnlock()
+	t, ok := b.users[uid]
+	return isStillBanned(t, ok)
+}
+
+func (b *Bans) isIPBanned(ip string) bool {
+	b.iplock.RLock()
+	defer b.iplock.RUnlock()
+	t, ok := b.ips[ip]
+	return isStillBanned(t, ok)
+}
+
+func (b *Bans) loadActive() {
+	b.userlock.Lock()
+	defer b.userlock.Unlock()
+	b.iplock.Lock()
+	defer b.iplock.Unlock()
+
+	// purge all the bans
+	b.users = make(map[Userid]time.Time)
+	b.ips = make(map[string]time.Time)
+	b.userips = make(map[Userid][]string)
