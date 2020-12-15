@@ -137,3 +137,24 @@ func (nc *namesCache) add(user *User) *User {
 	return nc.users[user.id]
 }
 
+func (nc *namesCache) disconnect(user *User) {
+	nc.Lock()
+	defer nc.Unlock()
+	var updateircnames bool
+
+	if user != nil {
+		nc.usercount--
+		if u, ok := nc.users[user.id]; ok {
+			conncount := atomic.AddInt32(&u.connections, -1)
+			if conncount <= 0 {
+				// DO NOT DELETE THE USERS SO THAT THE LAST MESSASE IS PRESSERVED FOR
+				// ANTI SPAM, sadly this means memory usage can only go up
+				updateircnames = true
+			}
+		}
+
+	} else {
+		nc.usercount--
+	}
+	nc.marshalNames(updateircnames)
+}
