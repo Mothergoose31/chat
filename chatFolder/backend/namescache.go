@@ -172,3 +172,9 @@ func (nc *namesCache) refresh(user *User) {
 		nc.marshalNames(true)
 	}
 }
+func (nc *namesCache) addConnection() {
+	nc.Lock()
+	defer nc.Unlock()
+	nc.usercount++
+	nc.marshalNames(false)
+}
