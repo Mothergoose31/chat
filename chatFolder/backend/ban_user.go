@@ -98,3 +98,72 @@ func (b *Bans) clean() {
 		}
 	}
 }
+
+func (b *Bans) banUser(uid Userid, targetuid Userid, ban *BanIn) {
+	var expiretime time.Time
+
+	if ban.Ispermanent {
+		expiretime = getFuturetimeUTC()
+	} else {
+		expiretime = addDurationUTC(time.Duration(ban.Duration))
+	}
+
+	b.userlock.Lock()
+	b.users[targetuid] = expiretime
+	b.userlock.Unlock()
+	b.log(uid, targetuid, ban, "")
+
+	if ban.BanIP {
+		ips := getIPCacheForUser(targetuid)
+		if len(ips) == 0 {
+			D("No ips found in cache for user", targetuid)
+			ips = hub.getIPsForUserid(targetuid)
+			if len(ips) == 0 {
+				D("No ips found for user (offline)", targetuid)
+			}
+		}
+
+		b.iplock.Lock()
+		defer b.iplock.Unlock()
+		for _, ip := range ips {
+			b.banIP(targetuid, ip, expiretime, true)
+			hub.ipbans <- ip
+			b.log(uid, targetuid, ban, ip)
+			D("IPBanned user", ban.Nick, targetuid, "with ip:", ip)
+		}
+
+	}
+
+	hub.ban_user <- targetuid
+	D("Banned user", ban.Nick, targetuid)
+}
+
+
+func (b *Bans) banIP(uid Userid, ip string, t time.Time, skiplock bool) {
+	if !skiplock { // because the caller holds the locks
+		b.iplock.Lock()
+		defer b.iplock.Unlock()
+	}
+
+	b.ips[ip] = t
+	if _, ok := b.userips[uid]; !ok {
+		b.userips[uid] = make([]string, 0, 1)
+	}
+	b.userips[uid] = append(b.userips[uid], ip)
+}
+
+func (b *Bans) unbanUserid(uid Userid) {
+	b.logUnban(uid)
+	b.userlock.Lock()
+	defer b.userlock.Unlock()
+	b.iplock.Lock()
+	defer b.iplock.Unlock()
+
+	delete(b.users, uid)
+	for _, ip := range b.userips[uid] {
+		delete(b.ips, ip)
+		D("Unbanned IP: ", ip, "for uid:", uid)
+	}
+	b.userips[uid] = nil
+	D("Unbanned uid: ", uid)
+}
