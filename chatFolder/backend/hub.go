@@ -112,3 +112,54 @@ func (hub *Hub) run() {
 		}
 	}
 }
+
+
+func (hub *Hub) getIPsForUserid(userid Userid) []string {
+	c := make(chan []string, 1)
+	hub.getips <- useridips{userid, c}
+	return <-c
+}
+
+func (hub *Hub) canUserSpeak(c *Connection) bool {
+	state.RLock()
+	defer state.RUnlock()
+
+	if !state.submode || c.user.isSubscriber() {
+		return true
+	}
+
+	return false
+}
+
+func (hub *Hub) toggleSubmode(enabled bool) {
+	state.Lock()
+	defer state.Unlock()
+
+	state.submode = enabled
+	state.save()
+}
+
+func initBroadcast(redisdb int64) {
+	go setupBroadcast(redisdb)
+	go setupPrivmsg(redisdb)
+}
+
+func setupBroadcast(redisdb int64) {
+	setupRedisSubscription("broadcast", redisdb, func(result *redis.PublishedValue) {
+		var bc EventDataIn
+		err := json.Unmarshal(result.Value.Bytes(), &bc)
+		if err != nil {
+			D("unable to unmarshal broadcast message", result.Value.String())
+			return
+		}
+
+		data := &EventDataOut{}
+		data.Timestamp = unixMilliTime()
+		data.Data = bc.Data
+		m, _ := Marshal(data)
+		hub.broadcast <- &message{
+			event: "BROADCAST",
+			data:  m,
+		}
+	})
+}
