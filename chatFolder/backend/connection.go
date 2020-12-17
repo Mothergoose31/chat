@@ -40,3 +40,49 @@ type SimplifiedUser struct {
 	Nick     string    `json:"nick,omitempty"`
 	Features *[]string `json:"features,omitempty"`
 }
+ype EventDataIn struct {
+	Data      string `json:"data"`
+	Extradata string `json:"extradata"`
+	Duration  int64  `json:"duration"`
+}
+
+type EventDataOut struct {
+	*SimplifiedUser
+	Targetuserid Userid `json:"-"`
+	Timestamp    int64  `json:"timestamp"`
+	Data         string `json:"data,omitempty"`
+	Extradata    string `json:"extradata,omitempty"`
+	Duration     int64  `json:"duration,omitempty"`
+}
+
+type BanIn struct {
+	Nick        string `json:"nick"`
+	BanIP       bool   `json:"banip"`
+	Duration    int64  `json:"duration"`
+	Ispermanent bool   `json:"ispermanent"`
+	Reason      string `json:"reason"`
+}
+
+type PingOut struct {
+	Timestamp int64 `json:"data"`
+}
+
+type message struct {
+	msgtyp int
+	event  string
+	data   interface{}
+}
+
+type PrivmsgIn struct {
+	Nick string `json:"nick"`
+	Data string `json:"data"`
+}
+
+type PrivmsgOut struct {
+	message
+	targetuid Userid
+	Messageid int64  `json:"messageid"`
+	Timestamp int64  `json:"timestamp"`
+	Nick      string `json:"nick,omitempty"`
+	Data      string `json:"data,omitempty"`
+}
