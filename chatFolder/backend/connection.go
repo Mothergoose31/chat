@@ -260,3 +260,33 @@ func (c *Connection) writePumpText() {
 		}
 	}
 }
+func (c *Connection) rlockUserIfExists() {
+	if c.user == nil {
+		return
+	}
+
+	c.user.RLock()
+}
+
+func (c *Connection) runlockUserIfExists() {
+	if c.user == nil {
+		return
+	}
+
+	c.user.RUnlock()
+}
+
+func (c *Connection) Emit(event string, data interface{}) {
+	c.send <- &message{
+		event: event,
+		data:  data,
+	}
+}
+
+func (c *Connection) EmitBlock(event string, data interface{}) {
+	c.blocksend <- &message{
+		event: event,
+		data:  data,
+	}
+	return
+}
