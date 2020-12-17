@@ -202,3 +202,61 @@ func (c *Connection) writePumpText() {
 		hub.unregister <- c
 		c.socket.Close() // Necessary to force reading to stop, will start the cleanup
 	}()
+	for {
+		select {
+		case _, ok := <-c.ping:
+			if !ok {
+				return
+			}
+			m, _ := time.Now().MarshalBinary()
+			if err := c.write(websocket.PingMessage, m); err != nil {
+				return
+			}
+		case <-c.banned:
+			c.write(websocket.TextMessage, []byte(`ERR {"description":"banned"}`))
+			c.write(websocket.CloseMessage, []byte{})
+			return
+		case <-c.stop:
+			return
+		case m := <-c.blocksend:
+			c.rlockUserIfExists()
+			if data, err := Marshal(m.data); err == nil {
+				c.runlockUserIfExists()
+				if data, err := Pack(m.event, data); err == nil {
+					if err := c.write(websocket.TextMessage, data); err != nil {
+						return
+					}
+				}
+			} else {
+				c.runlockUserIfExists()
+			}
+		case m := <-c.send:
+			c.rlockUserIfExists()
+			if data, err := Marshal(m.data); err == nil {
+				c.runlockUserIfExists()
+				if data, err := Pack(m.event, data); err == nil {
+					typ := m.msgtyp
+					if typ == 0 {
+						typ = websocket.TextMessage
+					}
+					if err := c.write(typ, data); err != nil {
+						return
+					}
+				}
+			} else {
+				c.runlockUserIfExists()
+			}
+		case message := <-c.sendmarshalled:
+			data := message.data.([]byte)
+			if data, err := Pack(message.event, data); err == nil {
+				typ := message.msgtyp
+				if typ == 0 {
+					typ = websocket.TextMessage
+				}
+				if err := c.write(typ, data); err != nil {
+					return
+				}
+			}
+		}
+	}
+}
