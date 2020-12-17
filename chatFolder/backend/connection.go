@@ -196,3 +196,9 @@ func (c *Connection) write(mt int, payload []byte) error {
 	c.socket.SetWriteDeadline(time.Now().Add(WRITETIMEOUT))
 	return c.socket.WriteMessage(mt, payload)
 }
+func (c *Connection) writePumpText() {
+	defer func() {
+		// need to write hub.go
+		hub.unregister <- c
+		c.socket.Close() // Necessary to force reading to stop, will start the cleanup
+	}()
