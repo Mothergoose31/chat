@@ -190,3 +190,9 @@ func (c *Connection) readPumpText() {
 		}
 	}
 }
+
+
+func (c *Connection) write(mt int, payload []byte) error {
+	c.socket.SetWriteDeadline(time.Now().Add(WRITETIMEOUT))
+	return c.socket.WriteMessage(mt, payload)
+}
