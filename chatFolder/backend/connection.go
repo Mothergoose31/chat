@@ -479,3 +479,74 @@ func (c *Connection) canMsg(msg string, ignoresilence bool) bool {
 
 	return true
 }
+
+func (c *Connection) OnMsg(data []byte) {
+	m := &EventDataIn{}
+	if err := Unmarshal(data, m); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil {
+		c.SendError("needlogin")
+		return
+	}
+
+	msg := strings.TrimSpace(m.Data)
+	if !c.canMsg(msg, false) {
+		return
+	}
+
+	// for anti-spam purposes
+	var bmsg []byte
+	if len(msg) > 4 && msg[:4] == "/me " {
+		bmsg = []byte(strings.TrimSpace(msg[4:]))
+	} else {
+		bmsg = []byte(msg)
+	}
+
+	tsum := md5.Sum(bmsg)
+	sum := tsum[:]
+	if !c.user.isBot() && bytes.Equal(sum, c.user.lastmessage) {
+		c.user.delayscale++
+		c.SendError("duplicate")
+		return
+	}
+	c.user.lastmessage = sum
+
+	out := c.getEventDataOut()
+	out.Data = msg
+	c.Broadcast("MSG", out)
+}
+
+func (c *Connection) OnPrivmsg(data []byte) {
+	p := &PrivmsgIn{}
+	if err := Unmarshal(data, p); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil {
+		c.SendError("needlogin")
+		return
+	}
+
+	msg := strings.TrimSpace(p.Data)
+	if !c.canMsg(msg, true) {
+		return
+	}
+
+	uid, _ := usertools.getUseridForNick(p.Nick)
+	if uid == 0 || uid == c.user.id {
+		c.SendError("notfound")
+		return
+	}
+
+	if err := api.sendPrivmsg(c.user.id, uid, msg); err != nil {
+		D("send error from", c.user.nick, err)
+		c.SendError(err.Error())
+	} else {
+		c.EmitBlock("PRIVMSGSENT", "")
+	}
+
+}
