@@ -402,3 +402,80 @@ func (c *Connection) Quit() {
 		}
 	}
 }
+
+
+func (c *Connection) OnBroadcast(data []byte) {
+	m := &EventDataIn{}
+	if err := Unmarshal(data, m); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil {
+		c.SendError("needlogin")
+		return
+	}
+
+	if !c.user.featureGet(ISADMIN) {
+		c.SendError("nopermission")
+		return
+	}
+
+	msg := strings.TrimSpace(m.Data)
+	msglen := utf8.RuneCountInString(msg)
+	if !utf8.ValidString(msg) || msglen == 0 || msglen > 512 || invalidmessage.MatchString(msg) {
+		c.SendError("invalidmsg")
+		return
+	}
+
+	out := c.getEventDataOut()
+	out.Data = msg
+	c.Broadcast("BROADCAST", out)
+
+}
+
+func (c *Connection) canMsg(msg string, ignoresilence bool) bool {
+
+	msglen := utf8.RuneCountInString(msg)
+	if !utf8.ValidString(msg) || msglen == 0 || msglen > 512 || invalidmessage.MatchString(msg) {
+		c.SendError("invalidmsg")
+		return false
+	}
+
+	if !ignoresilence {
+		muteTimeLeft := mutes.muteTimeLeft(c)
+		if muteTimeLeft > time.Duration(0) {
+			c.EmitBlock("ERR", NewMutedError(muteTimeLeft))
+			return false
+		}
+
+		if !hub.canUserSpeak(c) {
+			c.SendError("submode")
+			return false
+		}
+	}
+
+	if c.user != nil && !c.user.isBot() {
+
+		// very simple heuristics of "punishing" the flooding user
+		// if the user keeps spamming, the delay between messages increases
+		// this delay resets after a fixed amount of time
+		now := time.Now()
+		difference := now.Sub(c.user.lastmessagetime)
+		switch {
+		case difference <= DELAY:
+			c.user.delayscale *= 2
+		case difference > MAXTHROTTLETIME:
+			c.user.delayscale = 1
+		}
+		sendtime := c.user.lastmessagetime.Add(time.Duration(c.user.delayscale) * DELAY)
+		if sendtime.After(now) {
+			c.SendError("throttled")
+			return false
+		}
+		c.user.lastmessagetime = now
+
+	}
+
+	return true
+}
