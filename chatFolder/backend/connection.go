@@ -550,3 +550,46 @@ func (c *Connection) OnPrivmsg(data []byte) {
 	}
 
 }
+
+
+func (c *Connection) Names() {
+	c.sendmarshalled <- &message{
+		event: "NAMES",
+		data:  namescache.getNames(),
+	}
+}
+
+func (c *Connection) OnMute(data []byte) {
+	mute := &EventDataIn{} // Data is the nick
+	if err := Unmarshal(data, mute); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil || !c.user.isModerator() {
+		c.SendError("nopermission")
+		return
+	}
+
+	ok, uid := c.canModerateUser(mute.Data)
+	if !ok || uid == 0 {
+		c.SendError("nopermission")
+		return
+	}
+
+	if mute.Duration == 0 {
+		mute.Duration = int64(DEFAULTMUTEDURATION)
+	}
+
+	if time.Duration(mute.Duration) > 7*24*time.Hour {
+		c.SendError("protocolerror") // too long mute
+		return
+	}
+
+	mutes.muteUserid(uid, mute.Duration)
+	out := c.getEventDataOut()
+	out.Data = mute.Data
+	out.Duration = mute.Duration / int64(time.Second)
+	out.Targetuserid = uid
+	c.Broadcast("MUTE", out)
+}
