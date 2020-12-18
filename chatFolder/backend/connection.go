@@ -348,3 +348,34 @@ func (c *Connection) Quit() {
 		}
 	}
 }
+
+
+func (c *Connection) OnBroadcast(data []byte) {
+	m := &EventDataIn{}
+	if err := Unmarshal(data, m); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil {
+		c.SendError("needlogin")
+		return
+	}
+
+	if !c.user.featureGet(ISADMIN) {
+		c.SendError("nopermission")
+		return
+	}
+
+	msg := strings.TrimSpace(m.Data)
+	msglen := utf8.RuneCountInString(msg)
+	if !utf8.ValidString(msg) || msglen == 0 || msglen > 512 || invalidmessage.MatchString(msg) {
+		c.SendError("invalidmsg")
+		return
+	}
+
+	out := c.getEventDataOut()
+	out.Data = msg
+	c.Broadcast("BROADCAST", out)
+
+}
