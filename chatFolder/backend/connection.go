@@ -379,3 +379,26 @@ func (c *Connection) OnBroadcast(data []byte) {
 	c.Broadcast("BROADCAST", out)
 
 }
+
+
+func (c *Connection) Join() {
+	if c.user != nil {
+		c.rlockUserIfExists()
+		defer c.runlockUserIfExists()
+		n := atomic.LoadInt32(&c.user.connections)
+		if n == 1 {
+			c.Broadcast("JOIN", c.getEventDataOut())
+		}
+	}
+}
+
+func (c *Connection) Quit() {
+	if c.user != nil {
+		c.rlockUserIfExists()
+		defer c.runlockUserIfExists()
+		n := atomic.LoadInt32(&c.user.connections)
+		if n <= 0 {
+			c.Broadcast("QUIT", c.getEventDataOut())
+		}
+	}
+}
