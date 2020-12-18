@@ -337,3 +337,14 @@ func (c *Connection) Join() {
 		}
 	}
 }
+
+func (c *Connection) Quit() {
+	if c.user != nil {
+		c.rlockUserIfExists()
+		defer c.runlockUserIfExists()
+		n := atomic.LoadInt32(&c.user.connections)
+		if n <= 0 {
+			c.Broadcast("QUIT", c.getEventDataOut())
+		}
+	}
+}
