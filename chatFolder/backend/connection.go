@@ -316,3 +316,24 @@ func (c *Connection) canModerateUser(nick string) (bool, Userid) {
 
 	return true, uid
 }
+
+func (c *Connection) getEventDataOut() *EventDataOut {
+	out := &EventDataOut{
+		Timestamp: unixMilliTime(),
+	}
+	if c.user != nil {
+		out.SimplifiedUser = c.user.simplified
+	}
+	return out
+}
+
+func (c *Connection) Join() {
+	if c.user != nil {
+		c.rlockUserIfExists()
+		defer c.runlockUserIfExists()
+		n := atomic.LoadInt32(&c.user.connections)
+		if n == 1 {
+			c.Broadcast("JOIN", c.getEventDataOut())
+		}
+	}
+}
