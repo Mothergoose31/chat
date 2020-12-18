@@ -290,3 +290,29 @@ func (c *Connection) EmitBlock(event string, data interface{}) {
 	}
 	return
 }
+
+
+func (c *Connection) Broadcast(event string, data *EventDataOut) {
+	c.rlockUserIfExists()
+	marshalled, _ := Marshal(data)
+	c.runlockUserIfExists()
+
+	m := &message{
+		event: event,
+		data:  marshalled,
+	}
+	hub.broadcast <- m
+}
+
+func (c *Connection) canModerateUser(nick string) (bool, Userid) {
+	if c.user == nil || utf8.RuneCountInString(nick) == 0 {
+		return false, 0
+	}
+
+	uid, protected := usertools.getUseridForNick(nick)
+	if uid == 0 || c.user.id == uid || protected {
+		return false, uid
+	}
+
+	return true, uid
+}
