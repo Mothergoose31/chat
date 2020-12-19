@@ -593,3 +593,28 @@ func (c *Connection) OnMute(data []byte) {
 	out.Targetuserid = uid
 	c.Broadcast("MUTE", out)
 }
+
+func (c *Connection) OnUnmute(data []byte) {
+	user := &EventDataIn{} // Data is the nick
+	if err := Unmarshal(data, user); err != nil || utf8.RuneCountInString(user.Data) == 0 {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil || !c.user.isModerator() {
+		c.SendError("nopermission")
+		return
+	}
+
+	uid, _ := usertools.getUseridForNick(user.Data)
+	if uid == 0 {
+		c.SendError("notfound")
+		return
+	}
+
+	mutes.unmuteUserid(uid)
+	out := c.getEventDataOut()
+	out.Data = user.Data
+	out.Targetuserid = uid
+	c.Broadcast("UNMUTE", out)
+}
