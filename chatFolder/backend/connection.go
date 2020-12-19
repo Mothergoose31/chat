@@ -560,7 +560,7 @@ func (c *Connection) Names() {
 }
 
 func (c *Connection) OnMute(data []byte) {
-	mute := &EventDataIn{} // Data is the nick
+	mute := &EventDataIn{} // Data is the nickname
 	if err := Unmarshal(data, mute); err != nil {
 		c.SendError("protocolerror")
 		return
@@ -617,4 +617,77 @@ func (c *Connection) OnUnmute(data []byte) {
 	out.Data = user.Data
 	out.Targetuserid = uid
 	c.Broadcast("UNMUTE", out)
+}
+
+func (c *Connection) Muted() {
+}
+
+func (c *Connection) OnBan(data []byte) {
+	ban := &BanIn{}
+	if err := Unmarshal(data, ban); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil {
+		c.SendError("nopermission")
+		return
+	}
+
+	if !c.user.isModerator() {
+		c.SendError("nopermission")
+		return
+	}
+
+	ok, uid := c.canModerateUser(ban.Nick)
+	if uid == 0 {
+		c.SendError("notfound")
+		return
+	} else if !ok {
+		c.SendError("nopermission")
+		return
+	}
+
+	reason := strings.TrimSpace(ban.Reason)
+	if utf8.RuneCountInString(reason) == 0 || !utf8.ValidString(reason) {
+		c.SendError("needbanreason")
+		return
+	}
+
+	if ban.Duration == 0 {
+		ban.Duration = int64(DEFAULTBANDURATION)
+	}
+
+	bans.banUser(c.user.id, uid, ban)
+
+	out := c.getEventDataOut()
+	out.Data = ban.Nick
+	out.Targetuserid = uid
+	c.Broadcast("BAN", out)
+}
+
+func (c *Connection) OnUnban(data []byte) {
+	user := &EventDataIn{}
+	if err := Unmarshal(data, user); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil || !c.user.isModerator() {
+		c.SendError("nopermission")
+		return
+	}
+
+	uid, _ := usertools.getUseridForNick(user.Data)
+	if uid == 0 {
+		c.SendError("notfound")
+		return
+	}
+
+	bans.unbanUserid(uid)
+	mutes.unmuteUserid(uid)
+	out := c.getEventDataOut()
+	out.Data = user.Data
+	out.Targetuserid = uid
+	c.Broadcast("UNBAN", out)
 }
