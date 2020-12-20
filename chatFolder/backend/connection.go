@@ -691,3 +691,57 @@ func (c *Connection) OnUnban(data []byte) {
 	out.Targetuserid = uid
 	c.Broadcast("UNBAN", out)
 }
+func (c *Connection) Banned() {
+	c.banned <- true
+}
+
+func (c *Connection) OnSubonly(data []byte) {
+	m := &EventDataIn{} // Data is on/off
+	if err := Unmarshal(data, m); err != nil {
+		c.SendError("protocolerror")
+		return
+	}
+
+	if c.user == nil || !c.user.isModerator() {
+		c.SendError("nopermission")
+		return
+	}
+
+	switch {
+	case m.Data == "on":
+		hub.toggleSubmode(true)
+	case m.Data == "off":
+		hub.toggleSubmode(false)
+	default:
+		c.SendError("protocolerror")
+		return
+	}
+
+	out := c.getEventDataOut()
+	out.Data = m.Data
+	c.Broadcast("SUBONLY", out)
+}
+
+func (c *Connection) Ping() {
+	d := &PingOut{
+		time.Now().UnixNano(),
+	}
+
+	c.Emit("PING", d)
+}
+
+func (c *Connection) OnPing(data []byte) {
+	c.Emit("PONG", data)
+}
+
+func (c *Connection) OnPong(data []byte) {
+}
+
+func (c *Connection) SendError(identifier string) {
+	c.EmitBlock("ERR", GenericError{identifier})
+}
+
+func (c *Connection) Refresh() {
+	c.EmitBlock("REFRESH", c.getEventDataOut())
+	c.stop <- true
+}
