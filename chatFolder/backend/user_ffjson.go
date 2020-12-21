@@ -180,3 +180,74 @@ mainparse:
 			}
 		}
 	}
+	handle_Features:
+
+	/* handler: uj.Features type=[]string kind=slice */
+
+	{
+
+		{
+			if tok != fflib.FFTok_left_brace && tok != fflib.FFTok_null {
+				return fs.WrapErr(fmt.Errorf("cannot unmarshal %s into Go value for ", tok))
+			}
+		}
+
+		if tok == fflib.FFTok_null {
+			uj.Features = nil
+		} else {
+
+			uj.Features = make([]string, 0)
+
+		}
+
+		wantVal := true
+
+		for {
+
+			var v string
+
+			tok = fs.Scan()
+			if tok == fflib.FFTok_error {
+				goto tokerror
+			}
+			if tok == fflib.FFTok_right_brace {
+				break
+			}
+
+			if tok == fflib.FFTok_comma {
+				if wantVal == true {
+					// TODO(pquerna): this isn't an ideal error message, this handles
+					// things like [,,,] as an array value.
+					return fs.WrapErr(fmt.Errorf("wanted value token, but got token: %v", tok))
+				}
+				continue
+			} else {
+				wantVal = true
+			}
+
+			/* handler: v type=string kind=string */
+
+			{
+
+				{
+					if tok != fflib.FFTok_string && tok != fflib.FFTok_null {
+						return fs.WrapErr(fmt.Errorf("cannot unmarshal %s into Go value for string", tok))
+					}
+				}
+
+				if tok == fflib.FFTok_null {
+
+				} else {
+
+					v = string(fs.Output.String())
+
+				}
+			}
+
+			uj.Features = append(uj.Features, v)
+			wantVal = false
+		}
+	}
+
+	state = fflib.FFParse_after_value
+	goto mainparse
