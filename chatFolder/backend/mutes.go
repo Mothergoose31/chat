@@ -34,3 +34,19 @@ func (m *Mutes) unmuteUserid(uid Userid) {
 	delete(state.mutes, uid)
 	state.save()
 }
+func (m *Mutes) muteTimeLeft(c *Connection) time.Duration {
+	if c.user == nil {
+		return time.Duration(0)
+	}
+
+	state.Lock()
+	defer state.Unlock()
+
+	muteExpirationTime, ok := state.mutes[c.user.id]
+	if !ok {
+		return time.Duration(0)
+	}
+
+	timeLeft := time.Until(muteExpirationTime)
+	return timeLeft
+}
