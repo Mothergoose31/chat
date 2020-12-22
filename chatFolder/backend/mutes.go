@@ -26,3 +26,11 @@ func (m *Mutes) muteUserid(uid Userid, duration int64) {
 	state.mutes[uid] = time.Now().UTC().Add(time.Duration(duration))
 	state.save()
 }
+
+func (m *Mutes) unmuteUserid(uid Userid) {
+	state.Lock()
+	defer state.Unlock()
+
+	delete(state.mutes, uid)
+	state.save()
+}
