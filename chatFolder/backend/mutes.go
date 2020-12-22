@@ -19,3 +19,10 @@ func (m *Mutes) clean() {
 	}
 	state.save()
 }
+func (m *Mutes) muteUserid(uid Userid, duration int64) {
+	state.Lock()
+	defer state.Unlock()
+
+	state.mutes[uid] = time.Now().UTC().Add(time.Duration(duration))
+	state.save()
+}
