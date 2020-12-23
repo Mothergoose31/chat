@@ -15,3 +15,39 @@ func (mj *NamesOut) MarshalJSON() ([]byte, error) {
 	}
 	return buf.Bytes(), nil
 }
+
+func (mj *NamesOut) MarshalJSONBuf(buf fflib.EncodingBuffer) error {
+	var err error
+	var obj []byte
+	var scratch fflib.FormatBitsScratch
+	_ = obj
+	_ = err
+	buf.WriteString(`{"connectioncount":`)
+	fflib.FormatBits(&scratch, buf, uint64(mj.Connections), 10, false)
+	buf.WriteString(`, "users":`)
+	if mj.Users != nil {
+		buf.WriteString(`[`)
+		for i, v := range mj.Users {
+			if i != 0 {
+				buf.WriteString(`,`)
+			}
+			if v != nil {
+				/* Falling back. type=main.SimplifiedUser kind=struct */
+				obj, err = json.Marshal(v)
+				if err != nil {
+					return err
+				}
+				buf.Write(obj)
+			} else {
+				buf.WriteString(`null`)
+			}
+		}
+		buf.WriteString(`]`)
+	} else {
+		buf.WriteString(`null`)
+	}
+	buf.WriteString(`, `)
+	buf.Rewind(2)
+	buf.WriteByte('}')
+	return nil
+}
