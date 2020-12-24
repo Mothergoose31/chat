@@ -51,3 +51,12 @@ func (mj *NamesOut) MarshalJSONBuf(buf fflib.EncodingBuffer) error {
 	buf.WriteByte('}')
 	return nil
 }
+
+const (
+	ffj_t_NamesOutbase = iota
+	ffj_t_NamesOutno_such_key
+
+	ffj_t_NamesOut_Connections
+
+	ffj_t_NamesOut_Users
+)
