@@ -176,3 +176,132 @@ mainparse:
 			}
 		}
 	}
+
+	handle_Connections:
+
+	/* handler: uj.Connections type=uint32 kind=uint32 */
+
+	{
+		if tok != fflib.FFTok_integer && tok != fflib.FFTok_null {
+			return fs.WrapErr(fmt.Errorf("cannot unmarshal %s into Go value for uint32", tok))
+		}
+	}
+
+	{
+
+		if tok == fflib.FFTok_null {
+
+		} else {
+
+			tval, err := fflib.ParseUint(fs.Output.Bytes(), 10, 32)
+
+			if err != nil {
+				return fs.WrapErr(err)
+			}
+
+			uj.Connections = uint32(tval)
+
+		}
+	}
+
+	state = fflib.FFParse_after_value
+	goto mainparse
+
+handle_Users:
+
+	/* handler: uj.Users type=[]*main.SimplifiedUser kind=slice */
+
+	{
+
+		{
+			if tok != fflib.FFTok_left_brace && tok != fflib.FFTok_null {
+				return fs.WrapErr(fmt.Errorf("cannot unmarshal %s into Go value for ", tok))
+			}
+		}
+
+		if tok == fflib.FFTok_null {
+			uj.Users = nil
+		} else {
+
+			uj.Users = make([]*SimplifiedUser, 0)
+
+		}
+
+		wantVal := true
+
+		for {
+
+			var v *SimplifiedUser
+
+			tok = fs.Scan()
+			if tok == fflib.FFTok_error {
+				goto tokerror
+			}
+			if tok == fflib.FFTok_right_brace {
+				break
+			}
+
+			if tok == fflib.FFTok_comma {
+				if wantVal == true {
+					// TODO(pquerna): this isn't an ideal error message, this handles
+					// things like [,,,] as an array value.
+					return fs.WrapErr(fmt.Errorf("wanted value token, but got token: %v", tok))
+				}
+				continue
+			} else {
+				wantVal = true
+			}
+
+			/* handler: v type=*main.SimplifiedUser kind=ptr */
+
+			{
+
+				if tok == fflib.FFTok_null {
+					v = nil
+				} else {
+					if v == nil {
+						v = new(SimplifiedUser)
+					}
+
+					/* handler: v type=main.SimplifiedUser kind=struct */
+
+					{
+						/* Falling back. type=main.SimplifiedUser kind=struct */
+						tbuf, err := fs.CaptureField(tok)
+						if err != nil {
+							return fs.WrapErr(err)
+						}
+
+						err = json.Unmarshal(tbuf, &v)
+						if err != nil {
+							return fs.WrapErr(err)
+						}
+					}
+
+				}
+			}
+
+			uj.Users = append(uj.Users, v)
+			wantVal = false
+		}
+	}
+
+	state = fflib.FFParse_after_value
+	goto mainparse
+
+wantedvalue:
+	return fs.WrapErr(fmt.Errorf("wanted value token, but got token: %v", tok))
+wrongtokenerror:
+	return fs.WrapErr(fmt.Errorf("ffjson: wanted token: %v, but got token: %v output=%s", wantedTok, tok, fs.Output.String()))
+tokerror:
+	if fs.BigError != nil {
+		return fs.WrapErr(fs.BigError)
+	}
+	err = fs.Error.ToError()
+	if err != nil {
+		return fs.WrapErr(err)
+	}
+	panic("ffjson-generated: unreachable, please report bug.")
+done:
+	return nil
+}
